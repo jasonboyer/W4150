@@ -14,11 +14,10 @@
 #and R^2.
 
 # functions:
-#PlotOneStock(symbol)
 #  PlotPrice()
 #  PlotHistogram()
 #  PlotVsNormal()
-#  CalculateMeanConfidenceIntervals(percent)
+#  PlotMeanConfidenceInterval(percent)
 #  CalculateVarianceConfidenceInterval(percent)
 #  PlotLogReturnRegression()
 #
@@ -147,8 +146,14 @@ PlotVsNormal<-function(dfLogReturn) {
         col="maroon", lwd=2)
 }
 
-#  PlotMeanConfidenceIntervals(percent)
-PlotMeanConfidenceIntervals<-function(dfLogReturn, percent) {
+#  PlotMeanConfidenceInterval()
+#    arguments:
+#      dfLogReturn - vector containing log returns per interval
+#      percent - desired confidence interval, expressed in percent
+#    return value:
+#      list containing the lower bound of the interval in the first element,
+#      and the upper bound in the second element
+PlotMeanConfidenceInterval<-function(dfLogReturn, percent) {
   width <- qnorm(1-(100-percent)/200)*sd(dfLogReturn)/sqrt(length(dfLogReturn))
   lowerBound <- mean(dfLogReturn) - width
   upperBound <- mean(dfLogReturn) + width
@@ -157,10 +162,25 @@ PlotMeanConfidenceIntervals<-function(dfLogReturn, percent) {
   normalLine = dnorm(orderedLog, mean(orderedLog), sd(orderedLog))
   lines(orderedLog, normalLine)
   polygon(c(lowerBound,orderedLog[i],upperBound), c(0,normalLine[i],0), col="blue") 
+  list(lowerBound, upperBound)
 }
 
-#  PlotVarianceConfidenceInterval(percent)
-
+#  CalculateVarianceConfidenceInterval(percent)
+#    arguments:
+#      dfLogReturn - vector containing log returns per interval
+#      percent - desired confidence interval, expressed in percent
+#    return value:
+#      list containing the lower bound of the interval in the first element,
+#      and the upper bound in the second element
+CalculateVarianceConfidenceInterval<-function(dfLogReturn, percent) {
+  # (n-1)s^2/sigma^2 has a chi-squared(n-1) distribution
+  sampleVariance=var(dfLogReturn)
+  n = length(dfLogReturn)
+  lowerBound = (n-1)*sampleVariance/qchisq((100+percent)/200, n-1)
+  upperBound = (n-1)*sampleVariance/qchisq(1-(100+percent)/200, n-1)
+  list(lowerBound, upperBound)
+}
+  
 #  PlotLogReturnRegression()
 #    arguments:
 #      dep - vector containing dependent variable
@@ -235,7 +255,10 @@ adbeLog<-LogReturn(adbe$Close)
 PlotPrice(adbe, "ADBE")
 PlotHistogram(adbeLog)
 PlotVsNormal(adbeLog)
-PlotMeanConfidenceIntervals(adbeLog, 95)
+meanCI<-PlotMeanConfidenceInterval(adbeLog, 90)
+meanCI<-PlotMeanConfidenceInterval(adbeLog, 95)
+varCI<-CalculateVarianceConfidenceInterval(adbeLog, 90)
+varCI<-CalculateVarianceConfidenceInterval(adbeLog, 95)
 adbeModel = PlotRegression(adbeLog, adbe$Val[2:length(adbe$Val)], graphType="l")
 PlotResiduals(adbeModel, adbe$Val[2:length(adbe$Val)])
 summary(adbeModel)
@@ -245,7 +268,8 @@ msftLog<-LogReturn(msft$Close)
 PlotPrice(msft, "MSFT", "Daily closing price for Microsoft")
 PlotHistogram(msftLog)
 PlotVsNormal(msftLog)
-PlotMeanConfidenceIntervals(msftLog, 95)
+meanCI<-PlotMeanConfidenceInterval(msftLog, 95)
+varCI<-CalculateVarianceConfidenceInterval(msftLog, 95)
 msftModel<-PlotRegression(msftLog, msft$Val[2:length(msft$Val)], graphType="l")
 PlotResiduals(msftModel, msft$Val[2:length(msft$Val)])
 summary(msftModel)
@@ -271,8 +295,25 @@ for (j in 1:length(monthNumStrings)) {
 
 # Calculate the annual log returns
 gspcYearLog=LogReturnInterval(gspcList[[1]]$Open, gspcList[[12]]$Close)
-plot(gspcLogs[[1]], gspcYearLog, type="p")
-gspcModel<-PlotRegression(gspcYearLog, gspcJanLog, graphType="p")
-PlotResiduals(gspcModel, gspcJanLog)
+
+# Compare the monthly returns against the annual returns, using the 
+# monthly returns as the independent variable
+r.squared.list<-list(length(monthNumStrings))
+for (k in 1:length(monthNumStrings)) {
+  plot(gspcLogs[[k]], gspcYearLog, type="p")
+  gspcModel<-PlotRegression(gspcYearLog, gspcLogs[[k]], graphType="p")
+  PlotResiduals(gspcModel, gspcLogs[[k]])
+  r.squared.list[[k]]<-summary(gspcModel)$r.squared
+}
+
+# Find the largest r squared
+largest.r.squared.month<-month.abb[which.max(r.squared.list)]
+largest.r.squared<-r.squared.list[[which.max(r.squared.list)]]
+
+# Calculate January vs. the rest of the year
+gspcRestOfYearLog=LogReturnInterval(gspcList[[2]]$Open, gspcList[[12]]$Close)
+plot(gspcLogs[[1]], gspcRestOfYearLog, type="p")
+gspcModel<-PlotRegression(gspcRestOfYearLog, gspcLogs[[1]], graphType="p")
+PlotResiduals(gspcModel, gspcLogs[[1]])
 
 summary(gspcModel)
