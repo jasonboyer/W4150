@@ -38,6 +38,7 @@
 #   forecast - time series plotting and regression
 #   ggplot - plotting
 #   lattice - plotting
+#   plotly - plotting and uploading plots to the web
 #   tseries - time series analysis and computational finance
 
 #  ReadStock(symbol)
@@ -146,8 +147,18 @@ PlotPrice<-function(dfStock, strSymbol, graphTitle=NULL) {
 #      breaks - number of vertical bars to use in the plot
 #    return value:
 #      none
-PlotHistogram<-function(dfLogReturn, breaks) {
-  hist(dfLogReturn, breaks=30)  
+PlotHistogram<-function(dfLogReturn, numBins=30, graphTitle=NULL) {
+  if (is.null(graphTitle)) {
+    gTitle<-paste("Log returns of closing prices for ", strSymbol)
+  } else {
+    gTitle<-graphTitle
+  }
+  ret<-ggplot(data.frame(LogReturn=dfLogReturn), aes(LogReturn)) +
+    geom_histogram(bins=numBins)
+    #labs(title = gTitle, x="Date", 
+    #     y=paste(strSymbol, "closing price")) 
+  print(ret)
+  list(ret)
 }
 
 #  PlotVsNormal()
@@ -254,26 +265,27 @@ MeanEqualityTest<-function(strSymbolA, strSymbolB) {
 #
 ######################################################################
 
+# Load some libraries
 library(dplyr)
 library(lattice)
 library(forecast)
 library(ggplot2)
 library(lattice)
+library(plotly)
 library(tseries)
 library(zoo)
 
-# Demonsrate plotting and calculation functions
+# Demonstrate plotting and calculation functions
 
 plotCount<-0
 plots<-list(20)
 adbe<-ReadStock("adbe")
 adbeLog<-LogReturn(adbe$Close)
 plots[plotCount<-plotCount+1]<-PlotPrice(adbe, "ADBE")
-plots[1]
-plots[plotCount<-plotCount+1]<-PlotHistogram(adbeLog)
+plots[plotCount<-plotCount+1]<-PlotHistogram(adbeLog, graphTitle = "ADBE")
 plots[plotCount<-plotCount+1]<-PlotVsNormal(adbeLog)
-plots[plotCount<-plotCount+1]<-PlotMeanConfidenceInterval(adbeLog, 90)
-plots[plotCount<-plotCount+1]<-PlotMeanConfidenceInterval(adbeLog, 95)
+PlotMeanConfidenceInterval(adbeLog, 90)
+PlotMeanConfidenceInterval(adbeLog, 95)
 varCI<-CalculateVarianceConfidenceInterval(adbeLog, 90)
 varCI<-CalculateVarianceConfidenceInterval(adbeLog, 95)
 adbeModel = PlotRegression(adbeLog, adbe$Val[2:length(adbe$Val)], graphType="l")
