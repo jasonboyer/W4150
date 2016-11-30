@@ -114,17 +114,31 @@ LogReturnInterval<-function(openPrices, closingPrices) {
 #      dfStock - data frame containing stock closing price and date
 #      strSymbol - stock ticker symbol
 #    return value:
-#      none
+#      ggplot object
 PlotPrice<-function(dfStock, strSymbol, graphTitle=NULL) {
-  plot(dfStock$Date, log(dfStock$Close), xlab="Date", 
-       ylab=paste(strSymbol, "closing price"), type="l", 
-       col="maroon" )
-  abline(lm(log(dfStock$Close) ~ dfStock$Date), col="black")
+  #p <- ggplot(eng, aes(x=Length, y=Number)) + geom_point() + 
+  #   labs(title = "English language Wikipedia articles", x = "Article Length", y = "Number of Articles")
+  #ggplotly(p)
+  #plotly_POST(p, "wikilen-en")
   if (is.null(graphTitle)) {
-    title(paste("Closing prices for ", strSymbol))
+    gTitle<-paste("Closing prices for ", strSymbol)
   } else {
-    title(graphTitle)
+    gTitle<-graphTitle
   }
+  lMod<-lm(dfStock$Close ~ dfStock$Val)
+  intercept<-coefficients(lMod)[1]
+  slope<-coefficients(lMod)[2]
+  info=paste("Regression: ",
+            "Intercept:  ", intercept,
+            " Slope: ", slope)  
+  ret<-ggplot(dfStock, 
+              aes(x=Date, y=log(Close))) +
+    geom_line() +
+    geom_smooth(method="lm") +
+    labs(title = gTitle, x="Date", 
+       y=paste(strSymbol, "closing price")) 
+  print(ret)
+  list(ret)
 }
 # PlotHistogram(dfLogReturn, breaks)
 #    arguments:
@@ -250,13 +264,16 @@ library(zoo)
 
 # Demonsrate plotting and calculation functions
 
+plotCount<-0
+plots<-list(20)
 adbe<-ReadStock("adbe")
 adbeLog<-LogReturn(adbe$Close)
-PlotPrice(adbe, "ADBE")
-PlotHistogram(adbeLog)
-PlotVsNormal(adbeLog)
-meanCI<-PlotMeanConfidenceInterval(adbeLog, 90)
-meanCI<-PlotMeanConfidenceInterval(adbeLog, 95)
+plots[plotCount<-plotCount+1]<-PlotPrice(adbe, "ADBE")
+plots[1]
+plots[plotCount<-plotCount+1]<-PlotHistogram(adbeLog)
+plots[plotCount<-plotCount+1]<-PlotVsNormal(adbeLog)
+plots[plotCount<-plotCount+1]<-PlotMeanConfidenceInterval(adbeLog, 90)
+plots[plotCount<-plotCount+1]<-PlotMeanConfidenceInterval(adbeLog, 95)
 varCI<-CalculateVarianceConfidenceInterval(adbeLog, 90)
 varCI<-CalculateVarianceConfidenceInterval(adbeLog, 95)
 adbeModel = PlotRegression(adbeLog, adbe$Val[2:length(adbe$Val)], graphType="l")
