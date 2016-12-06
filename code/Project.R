@@ -147,7 +147,7 @@ PlotPrice<-function(dfStock, strSymbol, graphTitle=NULL) {
 #      breaks - number of vertical bars to use in the plot
 #    return value:
 #      none
-PlotHistogram<-function(dfLogReturn, numBins=30, graphTitle=NULL) {
+PlotHistogram<-function(dfLogReturn, strSymbol, numBins=30, graphTitle=NULL) {
   if (is.null(graphTitle)) {
     gTitle<-paste("Log returns of closing prices for ", strSymbol)
   } else {
@@ -166,9 +166,18 @@ PlotHistogram<-function(dfLogReturn, numBins=30, graphTitle=NULL) {
 #      dfLogReturn - vector containing log returns per interval
 #    return value:
 #      none
-PlotVsNormal<-function(dfLogReturn) {
-  curve(dnorm(x, mean(dfLogReturn), sd(dfLogReturn)), add=TRUE, 
-        col="maroon", lwd=2)
+PlotVsNormal<-function(dfLogReturn, existingPlot=NULL) {
+  if (is.null(existingPlot)) {
+    existingPlot = ggplot()
+  }
+  ret<-existingPlot +
+    stat_function(fun=dnorm, args=list(mean=mean(dfLogReturn),
+                                       sd=sd(dfLogReturn)),
+                  color="maroon")
+    
+#  curve(dnorm(x, mean(dfLogReturn), sd(dfLogReturn)), add=TRUE, 
+#        col="maroon", lwd=2)
+  list(ret)
 }
 
 #  PlotMeanConfidenceInterval()
@@ -178,16 +187,25 @@ PlotVsNormal<-function(dfLogReturn) {
 #    return value:
 #      list containing the lower bound of the interval in the first element,
 #      and the upper bound in the second element
-PlotMeanConfidenceInterval<-function(dfLogReturn, percent) {
-  width <- qnorm(1-(100-percent)/200)*sd(dfLogReturn)/sqrt(length(dfLogReturn))
+PlotMeanConfidenceInterval<-function(dfLogReturn, percent, 
+                                     intervalColor="blue",
+                                     intervalAlpha=0.5,
+                                     existingPlot=NULL) {
+  width <- qt(1-(100-percent)/200, length(dfLogReturn)-1)*sd(dfLogReturn)#/sqrt(length(dfLogReturn))
   lowerBound <- mean(dfLogReturn) - width
   upperBound <- mean(dfLogReturn) + width
   orderedLog<-dfLogReturn[order(dfLogReturn)]
-  i <- orderedLog >= lowerBound & orderedLog <= upperBound
   normalLine = dnorm(orderedLog, mean(orderedLog), sd(orderedLog))
-  lines(orderedLog, normalLine)
-  polygon(c(lowerBound,orderedLog[i],upperBound), c(0,normalLine[i],0), col="blue") 
-  list(lowerBound, upperBound)
+  gg<-subset(data.frame(x=orderedLog, y=normalLine), 
+             x >= lowerBound & x <= upperBound)
+  if (is.null(existingPlot)) {
+    existingPlot <- ggplot(data=gg)
+  }
+  ret<-existingPlot + geom_line(data=gg, aes(x = x, y = y)) +
+    geom_ribbon(data=gg, aes(x = x, ymax = y), ymin = 0, 
+                fill = intervalColor, alpha = intervalAlpha) +
+    scale_x_continuous(limits = c(min(orderedLog), max(orderedLog)))
+ list(ret)
 }
 
 #  CalculateVarianceConfidenceInterval(percent)
@@ -279,33 +297,78 @@ library(zoo)
 
 plotCount<-0
 plots<-list(20)
+
+# Calculations for symbol ADBE
 adbe<-ReadStock("adbe")
 adbeLog<-LogReturn(adbe$Close)
 plots[plotCount<-plotCount+1]<-PlotPrice(adbe, "ADBE")
-plots[plotCount<-plotCount+1]<-PlotHistogram(adbeLog, graphTitle = "ADBE")
-plots[plotCount<-plotCount+1]<-PlotVsNormal(adbeLog)
-PlotMeanConfidenceInterval(adbeLog, 90)
-PlotMeanConfidenceInterval(adbeLog, 95)
+p<-ggplotly(plots[[plotCount]])
+print(p)
+plots[plotCount<-plotCount+1]<-PlotHistogram(adbeLog, "ADBE", graphTitle = "ADBE")
+p<-ggplotly(plots[[plotCount]])
+print(p)
+plots[plotCount<-plotCount+1]<-PlotVsNormal(adbeLog, plots[[plotCount]])
+p<-ggplotly(plots[[plotCount]])
+print(p)
+plots[plotCount<-plotCount+1]<-PlotMeanConfidenceInterval(adbeLog, 90, 
+                                                          intervalColor = "lightblue",
+                                                          existingPlot = plots[[plotCount]])
+p<-ggplotly(plots[[plotCount]])
+print(p)
+plots[plotCount<-plotCount+1] <- PlotMeanConfidenceInterval(adbeLog, 95,
+                                                            intervalColor="pink",
+                                                            existingPlot = plots[[plotCount]])
+p<-ggplotly(plots[[plotCount]])
+print(p)
+
 varCI<-CalculateVarianceConfidenceInterval(adbeLog, 90)
+message(sprintf("90%% confidence interval for variance in ADBE log returns: %s", 
+                toString(varCI)))
 varCI<-CalculateVarianceConfidenceInterval(adbeLog, 95)
+message(sprintf("95%% confidence interval for variance in ADBE log returns: %s",
+                toString(varCI)))
 adbeModel = PlotRegression(adbeLog, adbe$Val[2:length(adbe$Val)], graphType="l")
 PlotResiduals(adbeModel, adbe$Val[2:length(adbe$Val)])
 summary(adbeModel)
 
+# Calulations for symbol MSFT
 msft<-ReadStock("msft")
 msftLog<-LogReturn(msft$Close)
-PlotPrice(msft, "MSFT", "Daily closing price for Microsoft")
-PlotHistogram(msftLog)
-PlotVsNormal(msftLog)
-meanCI<-PlotMeanConfidenceInterval(msftLog, 95)
+
+plots[plotCount<-plotCount+1] <- PlotPrice(msft, "MSFT", "Daily closing price for Microsoft")
+p<-ggplotly(plots[[plotCount]])
+print(p)
+
+plots[plotCount<-plotCount+1] <- PlotHistogram(msftLog, "MSFT")
+p<-ggplotly(plots[[plotCount]])
+print(p)
+
+plots[plotCount<-plotCount+1] <- PlotVsNormal(msftLog, plots[[plotCount<-plotCount]])
+p<-ggplotly(plots[[plotCount]])
+print(p)
+
+plots[plotCount<-plotCount+1] <- PlotMeanConfidenceInterval(msftLog, 95, 
+                                                            intervalColor="lightgreen",
+                                                            intervalAlpha="0.7",
+                                                            existingPlot = plots[[plotCount]])
+p<-ggplotly(plots[[plotCount]])
+print(p)
+
 varCI<-CalculateVarianceConfidenceInterval(msftLog, 95)
+message(sprintf("95%% confidence interval for variance in MSFT log returns: %s",
+                toString(varCI)))
 msftModel<-PlotRegression(msftLog, msft$Val[2:length(msft$Val)], graphType="l")
 PlotResiduals(msftModel, msft$Val[2:length(msft$Val)])
 summary(msftModel)
 
+# Plot regression of ADBE vs. MSFT
 twoStockModel=PlotTwoStockRegression("adbe", "msft", graphingType="p")
 
+#################################################################
+#
 # Plotting and calculations for the January predictor wives' tale
+#
+#################################################################
 gspc<-ReadStock("gspc", monthly=TRUE)
 monthNumStrings=c("01","02","03","04","05","06",
                   "07","08","09","10","11","12")
