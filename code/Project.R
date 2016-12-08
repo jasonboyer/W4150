@@ -229,12 +229,20 @@ CalculateVarianceConfidenceInterval<-function(dfLogReturn, percent) {
 #      dep - vector containing dependent variable
 #      indep - vector containing independent variable
 #    return value:
-#      the linear regression model
-PlotRegression<-function(dep, indep, graphType) {
-  plot(dep ~ indep, type=graphType)
-  regress = lm(dep ~ indep)
-  abline(regress)
-  regress
+#      the plot object
+PlotRegression<-function(dep, indep, linearModel=NULL, graphType="p") {
+  ret<-qplot(indep, dep) 
+  if (graphType == "l") {
+    ret <- ret + geom_line()
+  } else {
+    ret<- ret + geom_point()
+  }
+  ret <- ret + geom_smooth(method="lm")
+  if (is.null(linearModel)) {
+    linearModel<-lm(dep ~ indep)
+  }
+  print(summary(linearModel))
+  list(ret)
 }
 
 # PlotTwoStockRegression(strSymbolA, strSymbolB)
@@ -258,15 +266,22 @@ PlotTwoStockRegression<-function(strSymbolA, strSymbolB, graphingType) {
 }
 
 PlotTwoLogReturnRegression<-function(logStockA, logStockB) {
-  plot(logStockB ~ logStockA)
+  ret<-qplot(logStockA, logStockB) + geom_point() +
+    geom_smooth(method="lm")
   regress <- lm(logStockB ~ logStockA)
-  abline(regress)
-  regress
+  print(summary(regress))
 }
 
+# PlotResiduals
+# 
+# arguments
+#   lMod - linear regression model
+#   indep - independent variable 
 PlotResiduals<-function(lMod, indep) {
-  plot(indep, resid(lMod))
-  abline(0,0)
+  ret <- qplot(indep, resid(lMod)) + geom_point() + 
+    geom_hline(yintercept=0, color = I("blue"))
+  #abline(0,0)
+  list(ret)
 }
 
 MeanEqualityTest<-function(strSymbolA, strSymbolB) {
@@ -274,7 +289,7 @@ MeanEqualityTest<-function(strSymbolA, strSymbolB) {
   stockB <- ReadStock(strSymbolB)
   logStockA <- LogReturn(stockA$Close)
   logStockB <- LogReturn(stockB$Close)
-  t.test(logStockA, logStockB)
+  print(t.test(logStockA, logStockB))
 }
 
 ######################################################################
@@ -296,73 +311,85 @@ library(zoo)
 # Demonstrate plotting and calculation functions
 
 plotCount<-0
-plots<-list(20)
+plots<-list(50)
 
 # Calculations for symbol ADBE
 adbe<-ReadStock("adbe")
 adbeLog<-LogReturn(adbe$Close)
+
 plots[plotCount<-plotCount+1]<-PlotPrice(adbe, "ADBE")
-p<-ggplotly(plots[[plotCount]])
-print(p)
+print(ggplotly(plots[[plotCount]]))
+
 plots[plotCount<-plotCount+1]<-PlotHistogram(adbeLog, "ADBE", graphTitle = "ADBE")
-p<-ggplotly(plots[[plotCount]])
-print(p)
+print(ggplotly(plots[[plotCount]]))
+
 plots[plotCount<-plotCount+1]<-PlotVsNormal(adbeLog, plots[[plotCount]])
-p<-ggplotly(plots[[plotCount]])
-print(p)
+print(ggplotly(plots[[plotCount]]))
+
 plots[plotCount<-plotCount+1]<-PlotMeanConfidenceInterval(adbeLog, 90, 
                                                           intervalColor = "lightblue",
                                                           existingPlot = plots[[plotCount]])
-p<-ggplotly(plots[[plotCount]])
-print(p)
+print(ggplotly(plots[[plotCount]]))
+
 plots[plotCount<-plotCount+1] <- PlotMeanConfidenceInterval(adbeLog, 95,
                                                             intervalColor="pink",
                                                             existingPlot = plots[[plotCount]])
-p<-ggplotly(plots[[plotCount]])
-print(p)
+print(ggplotly(plots[[plotCount]]))
 
+# Calculate and print confidence intervals for the variance
 varCI<-CalculateVarianceConfidenceInterval(adbeLog, 90)
 message(sprintf("90%% confidence interval for variance in ADBE log returns: %s", 
                 toString(varCI)))
 varCI<-CalculateVarianceConfidenceInterval(adbeLog, 95)
 message(sprintf("95%% confidence interval for variance in ADBE log returns: %s",
                 toString(varCI)))
-adbeModel = PlotRegression(adbeLog, adbe$Val[2:length(adbe$Val)], graphType="l")
-PlotResiduals(adbeModel, adbe$Val[2:length(adbe$Val)])
-summary(adbeModel)
+
+# Calculate, plot, and summarize the linear regression model
+adbeModel <- lm(adbeLog ~ adbe$Val[2:length(adbe$Val)])
+plots[plotCount<-plotCount+1] <- PlotRegression(adbeLog, adbe$Val[2:length(adbe$Val)], linearModel=adbeModel, graphType="l")
+print(ggplotly(plots[[plotCount]]))
+
+
+# Plot the residuals of the linear regression model
+plots[plotCount<-plotCount+1] <- PlotResiduals(adbeModel, adbe$Val[2:length(adbe$Val)])
+print(ggplotly(plots[[plotCount]]))
+
+print(summary(adbeModel))
 
 # Calulations for symbol MSFT
 msft<-ReadStock("msft")
 msftLog<-LogReturn(msft$Close)
 
 plots[plotCount<-plotCount+1] <- PlotPrice(msft, "MSFT", "Daily closing price for Microsoft")
-p<-ggplotly(plots[[plotCount]])
-print(p)
+print(ggplotly(plots[[plotCount]]))
 
 plots[plotCount<-plotCount+1] <- PlotHistogram(msftLog, "MSFT")
-p<-ggplotly(plots[[plotCount]])
-print(p)
+print(ggplotly(plots[[plotCount]]))
 
 plots[plotCount<-plotCount+1] <- PlotVsNormal(msftLog, plots[[plotCount<-plotCount]])
-p<-ggplotly(plots[[plotCount]])
-print(p)
+print(ggplotly(plots[[plotCount]]))
 
 plots[plotCount<-plotCount+1] <- PlotMeanConfidenceInterval(msftLog, 95, 
                                                             intervalColor="lightgreen",
                                                             intervalAlpha="0.7",
                                                             existingPlot = plots[[plotCount]])
-p<-ggplotly(plots[[plotCount]])
-print(p)
+print(ggplotly(plots[[plotCount]]))
 
 varCI<-CalculateVarianceConfidenceInterval(msftLog, 95)
 message(sprintf("95%% confidence interval for variance in MSFT log returns: %s",
                 toString(varCI)))
-msftModel<-PlotRegression(msftLog, msft$Val[2:length(msft$Val)], graphType="l")
-PlotResiduals(msftModel, msft$Val[2:length(msft$Val)])
+
+msftModel <- lm(msftLog ~ msft$Val[2:length(msft$Val)])
+plots[plotCount<-plotCount+1] <- PlotRegression(msftLog, msft$Val[2:length(msft$Val)], graphType="l")
+print(ggplotly(plots[[plotCount]]))
+
+plots[plotCount<-plotCount+1] <- PlotResiduals(msftModel, msft$Val[2:length(msft$Val)])
+print(ggplotly(plots[[plotCount]]))
 summary(msftModel)
 
 # Plot regression of ADBE vs. MSFT
-twoStockModel=PlotTwoStockRegression("adbe", "msft", graphingType="p")
+plots[plotCount<-plotCount+1] <- PlotTwoStockRegression("adbe", "msft", graphingType="p")
+print(ggplotly(plots[[plotCount]]))
 
 #################################################################
 #
@@ -392,9 +419,12 @@ gspcYearLog=LogReturnInterval(gspcList[[1]]$Open, gspcList[[12]]$Close)
 # monthly returns as the independent variable
 r.squared.list<-list(length(monthNumStrings))
 for (k in 1:length(monthNumStrings)) {
-  plot(gspcLogs[[k]], gspcYearLog, type="p")
-  gspcModel<-PlotRegression(gspcYearLog, gspcLogs[[k]], graphType="p")
-  PlotResiduals(gspcModel, gspcLogs[[k]])
+  gspcModel<-lm(gspcYearLog ~ gspcLogs[[k]])
+  #plot(gspcLogs[[k]], gspcYearLog, type="p")
+  plots[plotCount<-plotCount+1] <- PlotRegression(gspcYearLog, gspcLogs[[k]], graphType="p")
+  print(ggplotly(plots[[plotCount]]))
+  plots[plotCount<-plotCount+1] <- PlotResiduals(gspcModel, gspcLogs[[k]])
+  print(ggplotly(plots[[plotCount]]))
   r.squared.list[[k]]<-summary(gspcModel)$r.squared
 }
 
@@ -404,8 +434,14 @@ largest.r.squared<-r.squared.list[[which.max(r.squared.list)]]
 
 # Calculate January vs. the rest of the year
 gspcRestOfYearLog=LogReturnInterval(gspcList[[2]]$Open, gspcList[[12]]$Close)
-plot(gspcLogs[[1]], gspcRestOfYearLog, type="p")
-gspcModel<-PlotRegression(gspcRestOfYearLog, gspcLogs[[1]], graphType="p")
-PlotResiduals(gspcModel, gspcLogs[[1]])
+gspcModel <- lm(gspcRestOfYearLog ~ gspcLogs[[1]])
+#plot(gspcLogs[[1]], gspcRestOfYearLog, type="p")
+plots[plotCount<-plotCount+1] <- PlotRegression(gspcRestOfYearLog, gspcLogs[[1]], graphType="p")
+print(ggplotly(plots[[plotCount]]))
+plots[plotCount<-plotCount+1] <- PlotResiduals(gspcModel, gspcLogs[[1]])
+print(ggplotly(plots[[plotCount]]))
 
-summary(gspcModel)
+print(gspcModel)
+
+source('code/PostToPlotly.R')
+PostToPlotly(plots)
