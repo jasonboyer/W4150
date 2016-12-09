@@ -34,11 +34,13 @@
 #  LogReturn(prices)
 
 # libraries
+#   base - for adjusting axis scales
 #   dplyr - data manipulation
 #   forecast - time series plotting and regression
 #   ggplot - plotting
 #   lattice - plotting
 #   plotly - plotting and uploading plots to the web
+#   scales - adjusting axis scales
 #   tseries - time series analysis and computational finance
 
 #  ReadStock(symbol)
@@ -117,12 +119,8 @@ LogReturnInterval<-function(openPrices, closingPrices) {
 #    return value:
 #      ggplot object
 PlotPrice<-function(dfStock, strSymbol, graphTitle=NULL) {
-  #p <- ggplot(eng, aes(x=Length, y=Number)) + geom_point() + 
-  #   labs(title = "English language Wikipedia articles", x = "Article Length", y = "Number of Articles")
-  #ggplotly(p)
-  #plotly_POST(p, "wikilen-en")
   if (is.null(graphTitle)) {
-    gTitle<-paste("Closing prices for ", strSymbol)
+    gTitle<-paste("Log of Closing Prices for ", strSymbol)
   } else {
     gTitle<-graphTitle
   }
@@ -133,11 +131,11 @@ PlotPrice<-function(dfStock, strSymbol, graphTitle=NULL) {
             "Intercept:  ", intercept,
             " Slope: ", slope)  
   ret<-ggplot(dfStock, 
-              aes(x=Date, y=log(Close))) +
+              aes(x=Date, y=Close)) +
     geom_line() +
     geom_smooth(method="lm") +
     labs(title = gTitle, x="Date", 
-       y=paste(strSymbol, "closing price")) 
+       y=paste(strSymbol, "Closing Price")) 
   print(ret)
   list(ret)
 }
@@ -154,10 +152,9 @@ PlotHistogram<-function(dfLogReturn, strSymbol, numBins=30, graphTitle=NULL) {
     gTitle<-graphTitle
   }
   ret<-ggplot(data.frame(LogReturn=dfLogReturn), aes(LogReturn)) +
+    labs(title = gTitle, x="Log Return", 
+         y="Frequency") +
     geom_histogram(bins=numBins)
-    #labs(title = gTitle, x="Date", 
-    #     y=paste(strSymbol, "closing price")) 
-  print(ret)
   list(ret)
 }
 
@@ -188,9 +185,10 @@ PlotVsNormal<-function(dfLogReturn, existingPlot=NULL) {
 #      list containing the lower bound of the interval in the first element,
 #      and the upper bound in the second element
 PlotMeanConfidenceInterval<-function(dfLogReturn, percent, 
-                                     intervalColor="blue",
-                                     intervalAlpha=0.5,
-                                     existingPlot=NULL) {
+                                     intervalColor = "blue",
+                                     intervalAlpha = 0.5,
+                                     existingPlot = NULL,
+                                     graphTitle = NULL) {
   width <- qt(1-(100-percent)/200, length(dfLogReturn)-1)*sd(dfLogReturn)#/sqrt(length(dfLogReturn))
   lowerBound <- mean(dfLogReturn) - width
   upperBound <- mean(dfLogReturn) + width
@@ -230,9 +228,23 @@ CalculateVarianceConfidenceInterval<-function(dfLogReturn, percent) {
 #      indep - vector containing independent variable
 #    return value:
 #      the plot object
-PlotRegression<-function(dep, indep, linearModel=NULL, graphType="p") {
-  ret<-qplot(indep, dep) 
-  if (graphType == "l") {
+PlotRegression<-function(dep, indep, linearModel = NULL,
+                         graphType = "p", xtitle = NULL, ytitle = NULL,
+                         graphTitle = NULL) {
+  if (is.null(xtitle)) {
+    xtitle <- "indep"
+  }
+  if (is.null(ytitle)) {
+    ytitle <- "dep"
+  }
+  if (is.null(graphTitle)) {
+    graphTitle = paste("Linear Regression of ", xtitle, " and ", ytitle)
+  }
+  
+  ret<-qplot(indep, dep, xlab = xtitle, ylab = ytitle,
+             main = graphTitle) 
+
+    if (graphType == "l") {
     ret <- ret + geom_line()
   } else {
     ret<- ret + geom_point()
@@ -257,12 +269,15 @@ PlotRegression<-function(dep, indep, linearModel=NULL, graphType="p") {
 # It then graphs the prices with stock A on the X-axis, and stock B
 # on the Y-axis. Finally, it calculates and graphs the linear 
 # regression line of stock B vs. stock A.
-PlotTwoStockRegression<-function(strSymbolA, strSymbolB, graphingType) {
+PlotTwoStockRegression<-function(strSymbolA, strSymbolB, graphingType,
+                                 xtitle = NULL, ytitle = NULL,
+                                 graphTitle = NULL) {
   stockA <- ReadStock(strSymbolA)
   stockB <- ReadStock(strSymbolB)
   logStockA <- LogReturn(stockA$Close)
   logStockB <- LogReturn(stockB$Close)
-  PlotRegression(logStockA, logStockB, graphType=graphingType)
+  PlotRegression(logStockB, logStockA, graphType=graphingType, 
+                 xtitle = xtitle, ytitle = ytitle, graphTitle = graphTitle)
 }
 
 PlotTwoLogReturnRegression<-function(logStockA, logStockB) {
@@ -277,10 +292,27 @@ PlotTwoLogReturnRegression<-function(logStockA, logStockB) {
 # arguments
 #   lMod - linear regression model
 #   indep - independent variable 
-PlotResiduals<-function(lMod, indep) {
-  ret <- qplot(indep, resid(lMod)) + geom_point() + 
+#   xtitle - label for x-axis
+#   ytitle - label for y-axis
+#   graphTitle - main label for plot
+# return value
+#   ggplot object
+PlotResiduals<-function(lMod, indep, xtitle = NULL, ytitle = NULL,
+                        graphTitle = NULL) {
+  if (is.null(xtitle)) {
+    xtitle <- "indep"
+  }
+  if (is.null(ytitle)) {
+    ytitle <- "Residuals"
+  }
+  if (is.null(graphTitle)) {
+    graphTitle = "Residuals of Linear Regression"
+  }
+  
+  ret <- qplot(indep, resid(lMod),
+               xlab = xtitle, ylab = ytitle,
+               main = graphTitle) + geom_point() + 
     geom_hline(yintercept=0, color = I("blue"))
-  #abline(0,0)
   list(ret)
 }
 
@@ -299,12 +331,14 @@ MeanEqualityTest<-function(strSymbolA, strSymbolB) {
 ######################################################################
 
 # Load some libraries
+library(base)
 library(dplyr)
 library(lattice)
 library(forecast)
 library(ggplot2)
 library(lattice)
 library(plotly)
+library(scales)
 library(tseries)
 library(zoo)
 
@@ -317,10 +351,16 @@ plots<-list(50)
 adbe<-ReadStock("adbe")
 adbeLog<-LogReturn(adbe$Close)
 
+# Plot linear regression of returns
 plots[plotCount<-plotCount+1]<-PlotPrice(adbe, "ADBE")
 print(ggplotly(plots[[plotCount]]))
 
-plots[plotCount<-plotCount+1]<-PlotHistogram(adbeLog, "ADBE", graphTitle = "ADBE")
+# Plot residuals of linear regression
+adbeMod <- lm(adbe$Close ~ adbe$Val)
+plots[plotCount<-plotCount+1] <- PlotResiduals(adbeMod, adbe$Val)
+print(ggplotly(plots[[plotCount]]))
+
+plots[plotCount<-plotCount+1]<-PlotHistogram(adbeLog, "ADBE", graphTitle = "ADBE Nov 2015- Nov 2016")
 print(ggplotly(plots[[plotCount]]))
 
 plots[plotCount<-plotCount+1]<-PlotVsNormal(adbeLog, plots[[plotCount]])
@@ -330,11 +370,15 @@ plots[plotCount<-plotCount+1]<-PlotMeanConfidenceInterval(adbeLog, 90,
                                                           intervalColor = "lightblue",
                                                           existingPlot = plots[[plotCount]])
 print(ggplotly(plots[[plotCount]]))
+# Skip publishing step
+plotCount <- plotCount - 1
 
 plots[plotCount<-plotCount+1] <- PlotMeanConfidenceInterval(adbeLog, 95,
                                                             intervalColor="pink",
                                                             existingPlot = plots[[plotCount]])
 print(ggplotly(plots[[plotCount]]))
+# Skip publishing step
+plotCount <- plotCount - 1
 
 # Calculate and print confidence intervals for the variance
 varCI<-CalculateVarianceConfidenceInterval(adbeLog, 90)
@@ -346,12 +390,16 @@ message(sprintf("95%% confidence interval for variance in ADBE log returns: %s",
 
 # Calculate, plot, and summarize the linear regression model
 adbeModel <- lm(adbeLog ~ adbe$Val[2:length(adbe$Val)])
-plots[plotCount<-plotCount+1] <- PlotRegression(adbeLog, adbe$Val[2:length(adbe$Val)], linearModel=adbeModel, graphType="l")
+plots[plotCount<-plotCount+1] <- PlotRegression(adbeLog, adbe$Val[2:length(adbe$Val)], linearModel=adbeModel,
+                                                graphType="l", ytitle = "ADBE Log Return", xtitle = "Time",
+                                                graphTitle = "ADBE Log Return Over Time")
 print(ggplotly(plots[[plotCount]]))
 
 
 # Plot the residuals of the linear regression model
-plots[plotCount<-plotCount+1] <- PlotResiduals(adbeModel, adbe$Val[2:length(adbe$Val)])
+plots[plotCount<-plotCount+1] <- PlotResiduals(adbeModel, adbe$Val[2:length(adbe$Val)],
+                                               xtitle = "Time",
+                                               graphTitle = "Residuals of Linear Regression of ADBE Log Returns Over Time")
 print(ggplotly(plots[[plotCount]]))
 
 print(summary(adbeModel))
@@ -363,7 +411,7 @@ msftLog<-LogReturn(msft$Close)
 plots[plotCount<-plotCount+1] <- PlotPrice(msft, "MSFT", "Daily closing price for Microsoft")
 print(ggplotly(plots[[plotCount]]))
 
-plots[plotCount<-plotCount+1] <- PlotHistogram(msftLog, "MSFT")
+plots[plotCount<-plotCount+1] <- PlotHistogram(msftLog, "MSFT", graphTitle = "MSFT Nov 2015- Nov 2016")
 print(ggplotly(plots[[plotCount]]))
 
 plots[plotCount<-plotCount+1] <- PlotVsNormal(msftLog, plots[[plotCount<-plotCount]])
@@ -374,21 +422,33 @@ plots[plotCount<-plotCount+1] <- PlotMeanConfidenceInterval(msftLog, 95,
                                                             intervalAlpha="0.7",
                                                             existingPlot = plots[[plotCount]])
 print(ggplotly(plots[[plotCount]]))
+# Skip publishing step. The confidence interval plots don't work on plotly
+plotCount <- plotCount - 1
 
 varCI<-CalculateVarianceConfidenceInterval(msftLog, 95)
 message(sprintf("95%% confidence interval for variance in MSFT log returns: %s",
                 toString(varCI)))
 
 msftModel <- lm(msftLog ~ msft$Val[2:length(msft$Val)])
-plots[plotCount<-plotCount+1] <- PlotRegression(msftLog, msft$Val[2:length(msft$Val)], graphType="l")
+plots[plotCount<-plotCount+1] <- PlotRegression(msftLog, msft$Val[2:length(msft$Val)],
+                                                graphType="l",
+                                                xtitle = "Time",
+                                                ytitle = "MSFT Log Return",
+                                                graphTitle = "NSFT Log Return Over Time")
 print(ggplotly(plots[[plotCount]]))
 
-plots[plotCount<-plotCount+1] <- PlotResiduals(msftModel, msft$Val[2:length(msft$Val)])
+plots[plotCount<-plotCount+1] <- PlotResiduals(msftModel, msft$Val[2:length(msft$Val)],
+                                               xtitle = "Time",
+                                               graphTitle = "Residuals of Linear Regression of ADBE Log Returns Over Time")
 print(ggplotly(plots[[plotCount]]))
 summary(msftModel)
 
 # Plot regression of ADBE vs. MSFT
-plots[plotCount<-plotCount+1] <- PlotTwoStockRegression("adbe", "msft", graphingType="p")
+plots[plotCount<-plotCount+1] <- PlotTwoStockRegression("adbe", "msft",
+                                                        graphingType="p",
+                                                        xtitle = "ADBE Log Return",
+                                                        ytitle = "MSFT Log Return",
+                                                        graphTitle = "Linear Regression of MSFT Log Return vs. ADBE Log Returns for Nov 2015-Nov 2016")
 print(ggplotly(plots[[plotCount]]))
 
 #################################################################
@@ -421,9 +481,16 @@ r.squared.list<-list(length(monthNumStrings))
 for (k in 1:length(monthNumStrings)) {
   gspcModel<-lm(gspcYearLog ~ gspcLogs[[k]])
   #plot(gspcLogs[[k]], gspcYearLog, type="p")
-  plots[plotCount<-plotCount+1] <- PlotRegression(gspcYearLog, gspcLogs[[k]], graphType="p")
+  plots[plotCount<-plotCount+1] <- PlotRegression(gspcYearLog,
+                                                  gspcLogs[[k]], graphType = "p",
+                                                  xtitle = paste("Month ", k, " Log Returns"),
+                                                  ytitle = "Annual Log Returns",
+                                                  graphTitle = paste("Linear Regression of Annual Returns of S&P 500 Index vs. Month ", k, " Returns"))
   print(ggplotly(plots[[plotCount]]))
-  plots[plotCount<-plotCount+1] <- PlotResiduals(gspcModel, gspcLogs[[k]])
+  plots[plotCount<-plotCount+1] <- PlotResiduals(gspcModel, gspcLogs[[k]],
+                                                 xtitle = paste("Month ", k, " Log Returns"),
+                                                 ytitle = "Residuals of Linear Regression of Annual Returns",
+                                                 graphTitle = "S&P 500 Index")
   print(ggplotly(plots[[plotCount]]))
   r.squared.list[[k]]<-summary(gspcModel)$r.squared
 }
@@ -436,12 +503,23 @@ largest.r.squared<-r.squared.list[[which.max(r.squared.list)]]
 gspcRestOfYearLog=LogReturnInterval(gspcList[[2]]$Open, gspcList[[12]]$Close)
 gspcModel <- lm(gspcRestOfYearLog ~ gspcLogs[[1]])
 #plot(gspcLogs[[1]], gspcRestOfYearLog, type="p")
-plots[plotCount<-plotCount+1] <- PlotRegression(gspcRestOfYearLog, gspcLogs[[1]], graphType="p")
+plots[plotCount<-plotCount+1] <- PlotRegression(gspcRestOfYearLog, gspcLogs[[1]],
+                                                graphType="p",
+                                                xtitle = "January Log Returns",
+                                                ytitle = "Feb-Dec Log Returns",
+                                                graphTitle = "Linear Regression of Feb-Dec Log Returns of S&P 500 Index vs. Jan Log Returns")
 print(ggplotly(plots[[plotCount]]))
-plots[plotCount<-plotCount+1] <- PlotResiduals(gspcModel, gspcLogs[[1]])
+plots[plotCount<-plotCount+1] <- PlotResiduals(gspcModel, gspcLogs[[1]],
+                                               xtitle = "January Log Returns",
+                                               ytitle = "Residuals of Linear Regression of Rest-of-year Log Returns",
+                                               graphTitle = "S&P 500 Index")
 print(ggplotly(plots[[plotCount]]))
 
 print(gspcModel)
 
-source('code/PostToPlotly.R')
-PostToPlotly(plots)
+# Publish plots to plotly
+# You need to set your username and API key in your .Rprofile
+# See code/PostToPlotly.R for details.
+# See my plots at https://plot.ly/~jb4022
+#source('code/PostToPlotly.R')
+#PostToPlotly(plots)
