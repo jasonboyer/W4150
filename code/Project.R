@@ -1,35 +1,27 @@
-#Given one stock symbol, your code needs to be able to: 
-#(1) Display histograms for your data by stock symbol. 
-#(2) Display a normal probability plot to see if the data is approximately normal. 
-#(3) Create (approximate) confidence intervals for the means and variances given a confidence level. 
-#(4) Perform a regression of the log-return on time.
+# SEIO W4150 Term Project
+# Jason Boyer (jb4022)
+# 2016-12-09
+#
+# See the accompanying PDF report for details on the project.
 
-#Given two stock symbols, your code needs to be able to: 
-#(1) Test the equality of the two population means. 
-#(2) Perform a regression of one log-return on the other.
-
-#All regression output needs to include intercept and slope estimates, 
-#a diagram of the data with the least-squares line, 
-#a graphical depiction of residuals, 
-#and R^2.
-
-# functions:
+# Plot functions:
 #  PlotPrice()
+#  PlotResiduals()
 #  PlotHistogram()
 #  PlotVsNormal()
+#  PlotRegression()
 #  PlotMeanConfidenceInterval(percent)
-#  CalculateVarianceConfidenceInterval(percent)
 #  PlotLogReturnRegression()
-#
-#PlotTwoStocks(symbol1, symbol2)
-#  MeanEqualityTest()
+#  PlotTwoStocks(symbol1, symbol2)
 #  PlotTwoStockRegression()
+#  PlotGGAndPlotly()
+#  PostToPlotly()
 #
-#Regression utilities:
-#  RegressionCalcSlopeAndIntercept()
-#  RegressionPlotResiduals()
+# Regression utilities:
+#  CalculateVarianceConfidenceInterval(percent)
+#  MeanEqualityTest()
 #
-#Data utilities:
+# Data utilities:
 #  ReadStock(symbol)
 #  LogReturn(prices)
 
@@ -46,44 +38,45 @@
 #  ReadStock(symbol)
 #   arguments:
 #     symbol - string representing the stock symbol
+#     ascending - boolean indicating whether to sort earliest to lates (default)
+#     monthly - boolean indicating whether to remove day from date values
 #   return value:
 #     data frame of the historical stock closing price
-ReadStock<-function(symbol, ascending=TRUE, monthly=FALSE) {
+ReadStock <- function(symbol, ascending=TRUE, monthly=FALSE) {
   filename <- paste("data/",symbol,"/",symbol,".csv", sep="")
-  prices<-read.csv(file=filename, head=TRUE, sep=",")
-  df<-dplyr::select(prices, Date, Open, Close)
+  prices <- read.csv(file=filename, head=TRUE, sep=",")
+  df <- dplyr::select(prices, Date, Open, Close)
   if (monthly) {
     # Yahoo monthly
-    dateFormat="%Y-%m"
-    ret<-data.frame(Open=df$Open,
-                    Close=df$Close, 
-                    Date=as.yearmon(df$Date))
-    ret<-data.frame(Open=ret$Open, 
-                   Close=ret$Close, 
-                   Date=ret$Date,
-                   Month=format(ret$Date, "%m"), 
-                   Year=format(ret$Date, "%Y"))
+    dateFormat = "%Y-%m"
+    ret<-data.frame(Open = df$Open,
+                    Close = df$Close, 
+                    Date = as.yearmon(df$Date))
+    ret<-data.frame(Open = ret$Open, 
+                   Close = ret$Close, 
+                   Date = ret$Date,
+                   Month = format(ret$Date, "%m"), 
+                   Year = format(ret$Date, "%Y"))
     } else {
     # Google daily
-    dateFormat="%d-%B-%y"
-    ret<-data.frame(Open=df$Open,
+    dateFormat = "%d-%B-%y"
+    ret <- data.frame(Open=df$Open,
                     Close=df$Close, 
                     Date=timeDate(stringr::str_c(df$Date), 
-                                  format=dateFormat))
+                                  format = dateFormat))
     # for some reason, the date column name is not set correctly,
     # so set it here
-    colnames(ret)<-c("Open", "Close", "Date")
+    colnames(ret) <- c("Open", "Close", "Date")
   }
   if (ascending) {
-    #df<-df[rev(order(as.Date(df$Date, format="%d-%m-%Y"))),]    
-    ret<-ret[order(ret[["Date"]]),]    
+    ret <- ret[order(ret[["Date"]]),]    
   } else {
-    ret<-ret[order(rev(ret[["Date"]])),]
+    ret <- ret[order(rev(ret[["Date"]])),]
   }
     
   # Add a column so that we can handle this as a regular regression
   # instead of a time series regression, which is problematic (for me, at least)
-  ret$Val<-seq.int(nrow(ret))
+  ret$Val <- seq.int(nrow(ret))
   ret
 }
 
@@ -92,7 +85,7 @@ ReadStock<-function(symbol, ascending=TRUE, monthly=FALSE) {
 #     prices - vector containing the historical stock prices
 #   return value:
 #     vector containing log returns per interval 
-LogReturn<-function(price) {
+LogReturn <- function(price) {
   diff(log(price))
 }
 
@@ -120,25 +113,28 @@ LogReturnInterval<-function(openPrices, closingPrices) {
 #      ggplot object
 PlotPrice<-function(dfStock, strSymbol, graphTitle=NULL) {
   if (is.null(graphTitle)) {
-    gTitle<-paste("Log of Closing Prices for ", strSymbol)
+    gTitle <- paste("Closing Prices for ", strSymbol)
   } else {
-    gTitle<-graphTitle
+    gTitle <- graphTitle
   }
-  lMod<-lm(dfStock$Close ~ dfStock$Val)
-  intercept<-coefficients(lMod)[1]
-  slope<-coefficients(lMod)[2]
-  info=paste("Regression: ",
-            "Intercept:  ", intercept,
-            " Slope: ", slope)  
+  lMod <- lm(dfStock$Close ~ dfStock$Val)
+  intercept <- coefficients(lMod)[1]
+  slope <- coefficients(lMod)[2]
+  info <- paste("Regression:",
+            "\nIntercept:  ", intercept,
+            "\nSlope: ", slope)  
   ret<-ggplot(dfStock, 
-              aes(x=Date, y=Close)) +
+              aes(x = Date, y = Close)) +
     geom_line() +
-    geom_smooth(method="lm") +
-    labs(title = gTitle, x="Date", 
-       y=paste(strSymbol, "Closing Price")) 
-  print(ret)
+    geom_smooth(method = "lm") +
+    labs(title = gTitle, x = "Date", 
+       y = paste(strSymbol, "Closing Price")) +
+    annotate("label", x = max(dfStock$Date) - (max(dfStock$Date) - min(dfStock$Date)) * .2,
+             y = max(dfStock$Close) - (max(dfStock$Close) - min(dfStock$Close)) * .85, 
+             label = info)
   list(ret)
 }
+
 # PlotHistogram(dfLogReturn, breaks)
 #    arguments:
 #      dfLogReturn - vector containing log returns per interval
@@ -297,7 +293,7 @@ PlotTwoLogReturnRegression<-function(logStockA, logStockB) {
 #   graphTitle - main label for plot
 # return value
 #   ggplot object
-PlotResiduals<-function(lMod, indep, xtitle = NULL, ytitle = NULL,
+PlotResiduals <- function(lMod, indep, xtitle = NULL, ytitle = NULL,
                         graphTitle = NULL) {
   if (is.null(xtitle)) {
     xtitle <- "indep"
@@ -308,12 +304,29 @@ PlotResiduals<-function(lMod, indep, xtitle = NULL, ytitle = NULL,
   if (is.null(graphTitle)) {
     graphTitle = "Residuals of Linear Regression"
   }
-  
-  ret <- qplot(indep, resid(lMod),
+  res <- resid(lMod)
+  info <- paste("R-squared: ", summary(lMod)$r.squared)
+  ret <- qplot(indep, res,
                xlab = xtitle, ylab = ytitle,
                main = graphTitle) + geom_point() + 
-    geom_hline(yintercept=0, color = I("blue"))
+    geom_hline(yintercept=0, color = I("blue")) +
+    annotate("label", x = max(indep) - (max(indep) - min(indep)) * .2,
+             y = max(res) - (max(res) - min(res)) * .85, 
+             label = info)
   list(ret)
+}
+
+# PlotGGAndPlotly - displays the ggplot, waits for input, then displays the plotly version
+#
+# arguments
+#   p - ggplot object
+# return value
+#   none
+PlotGGAndPlotly <- function(p) {
+  # Plotly does not support ggplot geom_label, so display the ggplot
+  print(p)
+  print("Press <ENTER> to continue ...")
+  print(ggplotly(p))
 }
 
 MeanEqualityTest<-function(strSymbolA, strSymbolB) {
@@ -353,12 +366,12 @@ adbeLog<-LogReturn(adbe$Close)
 
 # Plot linear regression of returns
 plots[plotCount<-plotCount+1]<-PlotPrice(adbe, "ADBE")
-print(ggplotly(plots[[plotCount]]))
+PlotGGAndPlotly(plots[[plotCount]])
 
 # Plot residuals of linear regression
 adbeMod <- lm(adbe$Close ~ adbe$Val)
 plots[plotCount<-plotCount+1] <- PlotResiduals(adbeMod, adbe$Val)
-print(ggplotly(plots[[plotCount]]))
+PlotGGAndPlotly(plots[[plotCount]])
 
 plots[plotCount<-plotCount+1]<-PlotHistogram(adbeLog, "ADBE", graphTitle = "ADBE Nov 2015- Nov 2016")
 print(ggplotly(plots[[plotCount]]))
@@ -393,14 +406,15 @@ adbeModel <- lm(adbeLog ~ adbe$Val[2:length(adbe$Val)])
 plots[plotCount<-plotCount+1] <- PlotRegression(adbeLog, adbe$Val[2:length(adbe$Val)], linearModel=adbeModel,
                                                 graphType="l", ytitle = "ADBE Log Return", xtitle = "Time",
                                                 graphTitle = "ADBE Log Return Over Time")
-print(ggplotly(plots[[plotCount]]))
+PlotGGAndPlotly(plots[[plotCount]])
 
 
 # Plot the residuals of the linear regression model
 plots[plotCount<-plotCount+1] <- PlotResiduals(adbeModel, adbe$Val[2:length(adbe$Val)],
                                                xtitle = "Time",
                                                graphTitle = "Residuals of Linear Regression of ADBE Log Returns Over Time")
-print(ggplotly(plots[[plotCount]]))
+
+PlotGGAndPlotly(plots[[plotCount]])
 
 print(summary(adbeModel))
 
@@ -409,7 +423,12 @@ msft<-ReadStock("msft")
 msftLog<-LogReturn(msft$Close)
 
 plots[plotCount<-plotCount+1] <- PlotPrice(msft, "MSFT", "Daily closing price for Microsoft")
-print(ggplotly(plots[[plotCount]]))
+PlotGGAndPlotly(plots[[plotCount]])
+
+# Plot residuals of linear regression
+msftMod <- lm(msft$Close ~ msft$Val)
+plots[plotCount<-plotCount+1] <- PlotResiduals(msftMod, msft$Val)
+PlotGGAndPlotly(plots[[plotCount]])
 
 plots[plotCount<-plotCount+1] <- PlotHistogram(msftLog, "MSFT", graphTitle = "MSFT Nov 2015- Nov 2016")
 print(ggplotly(plots[[plotCount]]))
@@ -435,13 +454,14 @@ plots[plotCount<-plotCount+1] <- PlotRegression(msftLog, msft$Val[2:length(msft$
                                                 xtitle = "Time",
                                                 ytitle = "MSFT Log Return",
                                                 graphTitle = "NSFT Log Return Over Time")
-print(ggplotly(plots[[plotCount]]))
+PlotGGAndPlotly(plots[[plotCount]])
 
 plots[plotCount<-plotCount+1] <- PlotResiduals(msftModel, msft$Val[2:length(msft$Val)],
                                                xtitle = "Time",
                                                graphTitle = "Residuals of Linear Regression of ADBE Log Returns Over Time")
-print(ggplotly(plots[[plotCount]]))
-summary(msftModel)
+PlotGGAndPlotly(plots[[plotCount]])
+
+print(summary(msftModel))
 
 # Plot regression of ADBE vs. MSFT
 plots[plotCount<-plotCount+1] <- PlotTwoStockRegression("adbe", "msft",
@@ -449,7 +469,7 @@ plots[plotCount<-plotCount+1] <- PlotTwoStockRegression("adbe", "msft",
                                                         xtitle = "ADBE Log Return",
                                                         ytitle = "MSFT Log Return",
                                                         graphTitle = "Linear Regression of MSFT Log Return vs. ADBE Log Returns for Nov 2015-Nov 2016")
-print(ggplotly(plots[[plotCount]]))
+PlotGGAndPlotly(plots[[plotCount]])
 
 #################################################################
 #
@@ -486,12 +506,14 @@ for (k in 1:length(monthNumStrings)) {
                                                   xtitle = paste("Month ", k, " Log Returns"),
                                                   ytitle = "Annual Log Returns",
                                                   graphTitle = paste("Linear Regression of Annual Returns of S&P 500 Index vs. Month ", k, " Returns"))
-  print(ggplotly(plots[[plotCount]]))
+  PlotGGAndPlotly(plots[[plotCount]])
+  
   plots[plotCount<-plotCount+1] <- PlotResiduals(gspcModel, gspcLogs[[k]],
                                                  xtitle = paste("Month ", k, " Log Returns"),
                                                  ytitle = "Residuals of Linear Regression of Annual Returns",
                                                  graphTitle = "S&P 500 Index")
-  print(ggplotly(plots[[plotCount]]))
+  PlotGGAndPlotly(plots[[plotCount]])
+  
   r.squared.list[[k]]<-summary(gspcModel)$r.squared
 }
 
@@ -502,18 +524,19 @@ largest.r.squared<-r.squared.list[[which.max(r.squared.list)]]
 # Calculate January vs. the rest of the year
 gspcRestOfYearLog=LogReturnInterval(gspcList[[2]]$Open, gspcList[[12]]$Close)
 gspcModel <- lm(gspcRestOfYearLog ~ gspcLogs[[1]])
-#plot(gspcLogs[[1]], gspcRestOfYearLog, type="p")
+
 plots[plotCount<-plotCount+1] <- PlotRegression(gspcRestOfYearLog, gspcLogs[[1]],
                                                 graphType="p",
                                                 xtitle = "January Log Returns",
                                                 ytitle = "Feb-Dec Log Returns",
                                                 graphTitle = "Linear Regression of Feb-Dec Log Returns of S&P 500 Index vs. Jan Log Returns")
-print(ggplotly(plots[[plotCount]]))
+PlotGGAndPlotly(plots[[plotCount]])
+
 plots[plotCount<-plotCount+1] <- PlotResiduals(gspcModel, gspcLogs[[1]],
                                                xtitle = "January Log Returns",
                                                ytitle = "Residuals of Linear Regression of Rest-of-year Log Returns",
                                                graphTitle = "S&P 500 Index")
-print(ggplotly(plots[[plotCount]]))
+PlotGGAndPlotly(plots[[plotCount]])
 
 print(gspcModel)
 
@@ -521,5 +544,6 @@ print(gspcModel)
 # You need to set your username and API key in your .Rprofile
 # See code/PostToPlotly.R for details.
 # See my plots at https://plot.ly/~jb4022
-#source('code/PostToPlotly.R')
-#PostToPlotly(plots)
+# Uncomment below to publish to your account
+# source('code/PostToPlotly.R')
+# PostToPlotly(plots)
