@@ -101,22 +101,6 @@ PlotMeanConfidenceInterval<-function(dfLogReturn, percent,
   list(ret)
 }
 
-#  CalculateVarianceConfidenceInterval(percent)
-#    arguments:
-#      dfLogReturn - vector containing log returns per interval
-#      percent - desired confidence interval, expressed in percent
-#    return value:
-#      list containing the lower bound of the interval in the first element,
-#      and the upper bound in the second element
-CalculateVarianceConfidenceInterval<-function(dfLogReturn, percent) {
-  # (n-1)s^2/sigma^2 has a chi-squared(n-1) distribution
-  sampleVariance=var(dfLogReturn)
-  n = length(dfLogReturn)
-  lowerBound = (n-1)*sampleVariance/qchisq((100+percent)/200, n-1)
-  upperBound = (n-1)*sampleVariance/qchisq(1-(100+percent)/200, n-1)
-  list(lowerBound, upperBound)
-}
-
 #  PlotLogReturnRegression()
 #    arguments:
 #      dep - vector containing dependent variable
