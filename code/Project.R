@@ -35,6 +35,9 @@ source('code/ProjectDemo.R')
 # Calculate and plot the data for the January Effect wives' tale
 source('code/Tale.R')
 
+# Upload plots to plotly
+source('code/PostToPlotly.R')
+
 # libraries
 #   base - for adjusting axis scales
 #   dplyr - data manipulation
@@ -74,6 +77,7 @@ p <- PlotTwoStockRegression("adbe", "msft",
                             ytitle = "MSFT Log Return",
                             graphTitle = "Linear Regression of MSFT Log Return vs. ADBE Log Returns for Nov 2015-Nov 2016")
 PlotGGAndPlotly(p[[1]])
+# plotly_POST(p[[1]])
 
 # Calculate and plot January Effect wives' tale data
 DoTale()
